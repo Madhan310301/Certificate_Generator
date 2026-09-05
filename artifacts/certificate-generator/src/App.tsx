@@ -1,21 +1,22 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { Award, Check, Download, FileImage, Info, Sparkles } from 'lucide-react';
+import certificateTemplate from '@assets/ChatGPT_Image_Sep_5,_2026,_06_26_14_PM_1788612987434.png';
 
 /**
  * TEMPLATE CONFIGURATION
- * Replace `templateImage` with the supplied certificate image URL (or an imported
- * asset path) before the event. The built-in renderer remains as a safe fallback.
+ * The supplied artwork is used unchanged. Only the participant name is drawn
+ * onto the template at the configured position.
  */
 const CERTIFICATE_CONFIG = {
-  templateImage: null as string | null,
-  width: 1600,
-  height: 1131,
+  templateImage: certificateTemplate as string | null,
+  width: 1024,
+  height: 768,
   name: {
-    x: 800,
-    y: 585,
-    fontFamily: 'Fraunces',
-    fontSize: 92,
-    color: '#253252',
+    x: 512,
+    y: 316,
+    fontFamily: 'Arial',
+    fontSize: 28,
+    color: '#111827',
     textAlign: 'center' as CanvasTextAlign,
   },
 };
@@ -111,20 +112,42 @@ function useCertificateRenderer(canvasRef: RefObject<HTMLCanvasElement | null>, 
     const context = canvas.getContext('2d');
     if (!context) return;
 
+    let cancelled = false;
+    const drawParticipantName = () => {
+      if (cancelled) return;
+      context.fillStyle = CERTIFICATE_CONFIG.name.color;
+      context.textAlign = CERTIFICATE_CONFIG.name.textAlign;
+      context.font = `700 ${CERTIFICATE_CONFIG.name.fontSize}px ${CERTIFICATE_CONFIG.name.fontFamily}, sans-serif`;
+      context.fillText(
+        name || 'Your name here',
+        CERTIFICATE_CONFIG.name.x,
+        CERTIFICATE_CONFIG.name.y,
+      );
+    };
+
     if (CERTIFICATE_CONFIG.templateImage) {
       const image = new Image();
       image.onload = () => {
+        if (cancelled) return;
         context.drawImage(image, 0, 0, CERTIFICATE_CONFIG.width, CERTIFICATE_CONFIG.height);
-        context.fillStyle = CERTIFICATE_CONFIG.name.color;
-        context.textAlign = CERTIFICATE_CONFIG.name.textAlign;
-        context.font = `${CERTIFICATE_CONFIG.name.fontSize}px ${CERTIFICATE_CONFIG.name.fontFamily}, Georgia, serif`;
-        context.fillText(name || 'Your name here', CERTIFICATE_CONFIG.name.x, CERTIFICATE_CONFIG.name.y);
+        drawParticipantName();
+      };
+      image.onerror = () => {
+        if (!cancelled) {
+          drawFallbackCertificate(context, name, CERTIFICATE_CONFIG.width, CERTIFICATE_CONFIG.height);
+        }
       };
       image.src = CERTIFICATE_CONFIG.templateImage;
-      return;
+      return () => {
+        cancelled = true;
+      };
     }
 
     drawFallbackCertificate(context, name, CERTIFICATE_CONFIG.width, CERTIFICATE_CONFIG.height);
+
+    return () => {
+      cancelled = true;
+    };
   }, [canvasRef, name]);
 }
 
@@ -210,7 +233,7 @@ function App() {
                   }
                   setStatusMessage('Enter a name to make it official.');
                 }}
-                placeholder="Type their full name"
+                 placeholder="Enter your full name"
                 autoComplete="name"
                 autoCapitalize="words"
                 maxLength={48}
@@ -273,7 +296,7 @@ function App() {
             </div>
             <p className="setup-notice" data-testid="text-configuration-notice">
               <Info size={15} aria-hidden="true" />
-              <span>This is a built-in visual fallback while the event template is being configured. The template image and name placement are marked in the renderer code and can be swapped before sharing this link.</span>
+              <span>The supplied certificate artwork stays unchanged; only the participant name is added when you generate a certificate.</span>
             </p>
           </div>
         </div>
@@ -281,6 +304,7 @@ function App() {
 
       <footer className="footer">
         <span>Made for live event moments</span>
+        <a className="footer-credit" href="https://www.madhankumart.in">Made By Madhan Kumar T</a>
         <span>Private by design · Nothing is stored</span>
       </footer>
     </main>
