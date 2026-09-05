@@ -4,7 +4,7 @@
   "license": "MIT",
   "scripts": {
     "dev": "pnpm --filter @workspace/certificate-generator dev",
-    "build": "pnpm --filter @workspace/certificate-generator build",
+    "build": "pnpm --filter @workspace/certificate-generator build && node scripts/copy-dist.mjs",
     "build:all": "pnpm run typecheck:all && pnpm -r --if-present run build",
     "preview": "pnpm --filter @workspace/certificate-generator serve",
     "serve": "pnpm --filter @workspace/certificate-generator serve",
