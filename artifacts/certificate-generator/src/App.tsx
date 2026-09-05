@@ -1,23 +1,18 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
-import { Award, Check, Download, FileImage, Info, Sparkles } from 'lucide-react';
-import certificateTemplate from '@assets/ChatGPT_Image_Sep_5,_2026,_06_26_14_PM_1788612987434.png';
-import websiteCollegeLogo from '@assets/ChatGPT_Image_Sep_5,_2026,_06_37_53_PM_1788613687449.png';
+import { Award, Check, CheckCircle2, Download, ShieldCheck, Sparkles } from 'lucide-react';
+import certificateTemplate from '@assets/certificate_template_biher.png';
+import appLogo from '@assets/gsa_logo.png';
 
-/**
- * TEMPLATE CONFIGURATION
- * The supplied artwork is used unchanged. Only the participant name is drawn
- * onto the template at the configured position.
- */
 const CERTIFICATE_CONFIG = {
   templateImage: certificateTemplate as string | null,
   width: 1024,
-  height: 768,
+  height: 769,
   name: {
     x: 512,
-    y: 316,
-    fontFamily: 'Arial',
+    y: 352,
+    fontFamily: "'Plus Jakarta Sans', 'DM Sans', 'Segoe UI', Arial, sans-serif",
     fontSize: 28,
-    color: '#111827',
+    color: '#0f172a',
     textAlign: 'center' as CanvasTextAlign,
   },
 };
@@ -116,14 +111,21 @@ function useCertificateRenderer(canvasRef: RefObject<HTMLCanvasElement | null>, 
     let cancelled = false;
     const drawParticipantName = () => {
       if (cancelled) return;
+      const textToDraw = (name || 'Your Full Name').trim();
+      let fontSize = CERTIFICATE_CONFIG.name.fontSize;
+      const maxTextWidth = 500;
+      context.font = `700 ${fontSize}px ${CERTIFICATE_CONFIG.name.fontFamily}`;
+
+      let textWidth = context.measureText(textToDraw).width;
+      while (textWidth > maxTextWidth && fontSize > 16) {
+        fontSize -= 1;
+        context.font = `700 ${fontSize}px ${CERTIFICATE_CONFIG.name.fontFamily}`;
+        textWidth = context.measureText(textToDraw).width;
+      }
+
       context.fillStyle = CERTIFICATE_CONFIG.name.color;
       context.textAlign = CERTIFICATE_CONFIG.name.textAlign;
-      context.font = `700 ${CERTIFICATE_CONFIG.name.fontSize}px ${CERTIFICATE_CONFIG.name.fontFamily}, sans-serif`;
-      context.fillText(
-        name || 'Your name here',
-        CERTIFICATE_CONFIG.name.x,
-        CERTIFICATE_CONFIG.name.y,
-      );
+      context.fillText(textToDraw, CERTIFICATE_CONFIG.name.x, CERTIFICATE_CONFIG.name.y);
     };
 
     if (CERTIFICATE_CONFIG.templateImage) {
@@ -158,34 +160,35 @@ function App() {
   const [generatedName, setGeneratedName] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [hasGenerated, setHasGenerated] = useState(false);
-  const [statusMessage, setStatusMessage] = useState('Enter a name to make it official.');
+  const [statusMessage, setStatusMessage] = useState('Enter your name to preview and download your certificate.');
 
   useCertificateRenderer(canvasRef, generatedName || name);
 
   const handleGenerate = useCallback(() => {
     const trimmedName = name.trim();
     if (!trimmedName || isGenerating) {
-      setStatusMessage('Add a name first, then generate your certificate.');
+      setStatusMessage('Please enter your full name first.');
       return;
     }
     setIsGenerating(true);
-    setStatusMessage('Preparing your certificate…');
+    setStatusMessage('Generating your certificate…');
     window.setTimeout(() => {
       setGeneratedName(trimmedName);
       setHasGenerated(true);
       setIsGenerating(false);
-      setStatusMessage(`Ready for ${trimmedName}.`);
-    }, 480);
+      setStatusMessage(`Ready for ${trimmedName}! You can now download it.`);
+    }, 400);
   }, [isGenerating, name]);
 
   const handleDownload = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas || !hasGenerated) return;
     const link = document.createElement('a');
-    link.download = `${generatedName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'certificate'}.png`;
+    const safeFilename = `${generatedName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'certificate'}-participation.png`;
+    link.download = safeFilename;
     link.href = canvas.toDataURL('image/png');
     link.click();
-    setStatusMessage('Downloaded. A lovely moment, made permanent.');
+    setStatusMessage('Certificate downloaded successfully! 🎉');
   }, [generatedName, hasGenerated]);
 
   return (
@@ -194,81 +197,146 @@ function App() {
         <div className="brand" data-testid="brand-mark">
           <img
             className="college-logo"
-            src={websiteCollegeLogo}
-            alt="Bharath Institute of Higher Education and Research"
+            src={appLogo}
+            alt="Google Student Ambassador Program"
           />
-          <span className="brand-wordmark">BIHER<span>EVENT CERTIFICATE</span></span>
+          <div className="brand-text">
+            <span className="brand-title">Google Student Ambassador</span>
+            <span className="brand-subtitle">BIHER Campus Community</span>
+          </div>
         </div>
-        <div className="event-identity" aria-label="Event name">
-          <span className="event-kicker">Certificate for</span>
-          <strong>Google Fresher&apos;s Fuse</strong>
+        <div className="event-badge-container">
+          <span className="event-badge">
+            <Sparkles size={14} />
+            Google Fresher&apos;s Fuse 2026
+          </span>
         </div>
-        <div className="template-note" data-testid="text-template-note">
-          <FileImage size={14} aria-hidden="true" />
-          <span>One name. One finished certificate.</span>
+        <div className="portal-status">
+          <span className="status-dot"></span>
+          <span>Official Event Portal</span>
         </div>
       </header>
 
       <section className="hero" aria-labelledby="page-title">
         <div className="hero-grid">
           <div className="intro">
-            <p className="eyebrow">For the moment that matters</p>
-            <h1 id="page-title" className="headline">Make it<br /><em>official.</em></h1>
+            <div className="welcome-tag">
+              <span>🎓 Welcome, Freshers Batch of 2026!</span>
+            </div>
+            <h1 id="page-title" className="headline">
+              Claim Your Event <span className="text-gradient">Certificate</span>
+            </h1>
             <p className="intro-copy">
-              Turn a name into a keepsake in seconds. No account, no waiting,
-              just a certificate ready to share from your phone.
+              Congratulations on participating in <strong>Google Fresher&apos;s Fuse 2026</strong>!
+              Enter your full name below to instantly generate and download your verified certificate of participation.
             </p>
 
-            <form
-              className="entry-card"
-              onSubmit={(event) => {
-                event.preventDefault();
-                handleGenerate();
-              }}
-              aria-label="Create a certificate"
-            >
-              <label htmlFor="certificate-name" className="entry-label">Enter your name.</label>
-              <input
-                id="certificate-name"
-                className="name-input"
-                data-testid="input-certificate-name"
-                type="text"
-                value={name}
-                onChange={(event) => {
-                  setName(event.target.value);
-                  if (hasGenerated) {
-                    setHasGenerated(false);
-                    setGeneratedName('');
-                  }
-                  setStatusMessage('Enter a name to make it official.');
+            <div className="entry-card">
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  handleGenerate();
                 }}
-                 placeholder="Enter your full name"
-                autoComplete="name"
-                autoCapitalize="words"
-                maxLength={48}
-                required
-              />
-              <button
-                type="submit"
-                className="generate-button"
-                data-testid="button-generate-certificate"
-                disabled={isGenerating}
+                aria-label="Generate your certificate"
               >
-                <Sparkles size={17} aria-hidden="true" />
-                {isGenerating ? 'Making it official…' : 'Generate certificate'}
-              </button>
-              <div className="entry-hint" data-testid="text-entry-hint">
-                <Info size={13} aria-hidden="true" />
-                Press Enter to generate. Names are not saved.
+                <div className="form-group">
+                  <label htmlFor="certificate-name" className="entry-label">
+                    Your Full Name
+                  </label>
+                  <div className="input-wrapper">
+                    <input
+                      id="certificate-name"
+                      className="name-input"
+                      data-testid="input-certificate-name"
+                      type="text"
+                      value={name}
+                      onChange={(event) => {
+                        setName(event.target.value);
+                        if (hasGenerated) {
+                          setHasGenerated(false);
+                          setGeneratedName('');
+                        }
+                        setStatusMessage('Enter your name to preview your certificate.');
+                      }}
+                      placeholder="e.g. Rahul Sharma"
+                      autoComplete="name"
+                      autoCapitalize="words"
+                      maxLength={48}
+                      required
+                    />
+                  </div>
+                  <p className="input-hint">
+                    💡 Please check your spelling carefully. It will appear exactly as typed on your certificate.
+                  </p>
+                </div>
+
+                <div className="button-group">
+                  <button
+                    type="submit"
+                    className="generate-button"
+                    data-testid="button-generate-certificate"
+                    disabled={isGenerating || !name.trim()}
+                  >
+                    <Award size={18} aria-hidden="true" />
+                    {isGenerating ? 'Generating Certificate…' : hasGenerated ? 'Update Certificate' : 'Generate Certificate'}
+                  </button>
+
+                  {hasGenerated && (
+                    <button
+                      type="button"
+                      className="quick-download-button"
+                      onClick={handleDownload}
+                    >
+                      <Download size={18} aria-hidden="true" />
+                      Download Certificate (PNG)
+                    </button>
+                  )}
+                </div>
+              </form>
+            </div>
+
+            <div className="feature-cards">
+              <div className="feature-item">
+                <div className="feature-icon-wrapper" style={{ background: '#eff6ff', color: '#2563eb' }}>
+                  <CheckCircle2 size={16} />
+                </div>
+                <div>
+                  <strong>Official Recognition</strong>
+                  <p>Certified under the Google Student Ambassador Program at BIHER</p>
+                </div>
               </div>
-            </form>
+              <div className="feature-item">
+                <div className="feature-icon-wrapper" style={{ background: '#ecfdf5', color: '#059669' }}>
+                  <Download size={16} />
+                </div>
+                <div>
+                  <strong>High-Resolution Export</strong>
+                  <p>Ready to showcase on LinkedIn, portfolio, and resumes</p>
+                </div>
+              </div>
+              <div className="feature-item">
+                <div className="feature-icon-wrapper" style={{ background: '#fef3c7', color: '#d97706' }}>
+                  <ShieldCheck size={16} />
+                </div>
+                <div>
+                  <strong>Private &amp; Instant</strong>
+                  <p>Generated directly in your browser without signups</p>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="preview-column">
-            <div className="preview-heading">
-              <h2>Live preview</h2>
-              <p>Designed to download beautifully</p>
+            <div className="preview-header">
+              <div className="preview-title-area">
+                <h2>Certificate Preview</h2>
+                <p>Live preview of your official participation certificate</p>
+              </div>
+              <span className={`preview-badge ${hasGenerated ? 'badge-ready' : 'badge-draft'}`}>
+                {hasGenerated ? '✓ Ready to Download' : 'Live Preview'}
+              </span>
             </div>
+
             <div className={`canvas-frame${hasGenerated ? ' generated' : ''}`} data-testid="certificate-preview">
               <canvas
                 ref={canvasRef}
@@ -278,17 +346,19 @@ function App() {
               />
               {isGenerating && (
                 <div className="canvas-loading" data-testid="status-generating" aria-live="polite">
-                  <span aria-label="Generating certificate" />
+                  <div className="loading-spinner"></div>
+                  <span>Rendering certificate…</span>
                 </div>
               )}
             </div>
+
             <div className="result-bar">
               <div className="result-status" data-testid="status-certificate">
-                <span className="result-status-icon" aria-hidden="true">
-                  {hasGenerated ? <Check size={16} /> : <Award size={16} />}
+                <span className={`result-status-icon ${hasGenerated ? 'icon-success' : 'icon-pending'}`} aria-hidden="true">
+                  {hasGenerated ? <Check size={18} /> : <Award size={18} />}
                 </span>
-                <div>
-                  <strong>{hasGenerated ? 'Certificate ready' : 'Your certificate is waiting'}</strong>
+                <div className="result-status-text">
+                  <strong>{hasGenerated ? 'Certificate Ready!' : 'Waiting for Name'}</strong>
                   <span>{statusMessage}</span>
                 </div>
               </div>
@@ -299,22 +369,32 @@ function App() {
                 onClick={handleDownload}
                 disabled={!hasGenerated || isGenerating}
               >
-                <Download size={16} aria-hidden="true" />
-                Download PNG
+                <Download size={17} aria-hidden="true" />
+                <span>Download PNG</span>
               </button>
             </div>
-            <p className="setup-notice" data-testid="text-configuration-notice">
-              <Info size={15} aria-hidden="true" />
-              <span>The supplied certificate artwork stays unchanged; only the participant name is added when you generate a certificate.</span>
-            </p>
+
+            <div className="share-prompt">
+              <Sparkles size={16} className="text-blue-600 flex-shrink-0" />
+              <span>
+                Celebrating your college start? Post on LinkedIn with <strong>#GoogleFreshersFuse</strong> and tag <strong>@BIHER</strong>!
+              </span>
+            </div>
           </div>
         </div>
       </section>
 
       <footer className="footer">
-        <span>Made for live event moments</span>
-        <a className="footer-credit" href="https://www.madhankumart.in">Made By Madhan Kumar T</a>
-        <span>Private by design · Nothing is stored</span>
+        <div className="footer-left">
+          <strong>Google Student Ambassador Program</strong>
+          <span>Bharath Institute of Higher Education and Research (BIHER)</span>
+        </div>
+        <div className="footer-center">
+          <span>Event: Google Fresher&apos;s Fuse 2026</span>
+        </div>
+        <div className="footer-right">
+          <span>Built with ❤️ by <a className="footer-credit" href="https://www.madhankumart.in" target="_blank" rel="noopener noreferrer">Madhan Kumar T</a></span>
+        </div>
       </footer>
     </main>
   );
