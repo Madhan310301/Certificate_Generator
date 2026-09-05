@@ -1,6 +1,6 @@
 [build]
   command = "pnpm --filter @workspace/certificate-generator build"
-  publish = "artifacts/certificate-generator/dist/public"
+  publish = "artifacts/certificate-generator/dist"
 
 [[redirects]]
   from = "/*"

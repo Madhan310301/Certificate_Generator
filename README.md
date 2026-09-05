@@ -64,7 +64,7 @@ pnpm build
 pnpm preview
 ```
 
-The output bundle is generated at `artifacts/certificate-generator/dist/public`.
+The output bundle is generated at `artifacts/certificate-generator/dist`.
 
 ---
 
