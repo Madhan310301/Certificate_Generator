@@ -1,0 +1,30 @@
+Build and help me deploy a simple, single-purpose Certificate Generator web app with this exact flow:
+
+Use Case
+This will be deployed once as a public link. That link will be shared with students at an event. Each student opens the link on their own device, types their name, clicks "Generate," and instantly gets their certificate (with their name placed correctly on a fixed template) to view/download. No login, no admin panel, no other features.
+
+Core Requirements
+
+One fixed certificate template (image, e.g. PNG/JPG) is set at deploy time — not uploaded by users.
+A single input field: "Enter your name."
+On clicking "Generate," overlay the entered name onto the template at a pre-configured position (x, y coordinates), with a pre-set font, size, and color.
+Show a preview of the generated certificate immediately on the same page.
+Provide a "Download" button to save it as an image (PNG/JPG).
+The app must work well on mobile browsers, since students will likely open the link on their phones.
+
+Tech Stack
+
+Prefer a simple, free-to-deploy approach: a static HTML/CSS/JS page using the HTML5 Canvas API to draw the name onto the template image, entirely client-side (no backend/server needed). This makes it deployable for free on GitHub Pages, Netlify, or Vercel and can handle many simultaneous users with zero server cost.
+If a backend is truly needed, use Python (Flask) with Pillow — but only if canvas-based client-side isn't sufficient.
+
+Configuration (so I can set this up before sharing the link)
+
+A clearly marked section in the code where I plug in: template image file, exact x/y coordinates for the name, font family, font size, font color, and text alignment (left/center/right).
+Instructions on how to test the name placement locally before deploying.
+
+Constraints
+
+No database, no user accounts, no storage of names — purely functional, one input → one output.
+Keep the UI minimal: title, name input, generate button, certificate preview, download button. Nothing else.
+
+Ask me for the certificate template image and where exactly the name should appear on it, then walk me through deployment once the code is ready.
