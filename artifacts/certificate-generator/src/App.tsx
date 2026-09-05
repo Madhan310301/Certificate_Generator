@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { Award, Check, Download, FileImage, Info, Sparkles } from 'lucide-react';
 import certificateTemplate from '@assets/ChatGPT_Image_Sep_5,_2026,_06_26_14_PM_1788612987434.png';
+import websiteCollegeLogo from '@assets/ChatGPT_Image_Sep_5,_2026,_06_37_53_PM_1788613687449.png';
 
 /**
  * TEMPLATE CONFIGURATION
@@ -191,8 +192,16 @@ function App() {
     <main className="app-shell">
       <header className="topbar">
         <div className="brand" data-testid="brand-mark">
-          <span className="brand-mark" aria-hidden="true"><Award size={16} strokeWidth={2.3} /></span>
-          <span className="brand-wordmark">MOMENT<span>CERTIFICATE</span></span>
+          <img
+            className="college-logo"
+            src={websiteCollegeLogo}
+            alt="Bharath Institute of Higher Education and Research"
+          />
+          <span className="brand-wordmark">BIHER<span>EVENT CERTIFICATE</span></span>
+        </div>
+        <div className="event-identity" aria-label="Event name">
+          <span className="event-kicker">Certificate for</span>
+          <strong>Google Fresher&apos;s Fuse</strong>
         </div>
         <div className="template-note" data-testid="text-template-note">
           <FileImage size={14} aria-hidden="true" />
