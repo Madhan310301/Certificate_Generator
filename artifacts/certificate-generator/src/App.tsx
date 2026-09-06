@@ -375,7 +375,7 @@ function App() {
             </div>
 
             <div className="share-prompt">
-              <Sparkles size={16} className="text-blue-600 flex-shrink-0" />
+              <Sparkles size={16} className="text-blue-600 shrink-0" />
               <span>
                 Celebrating your college start? Post on LinkedIn with <strong>#GoogleFreshersFuse</strong> and tag <strong>@BIHER</strong>!
               </span>
@@ -393,7 +393,7 @@ function App() {
           <span>Event: Google Fresher&apos;s Fuse 2026</span>
         </div>
         <div className="footer-right">
-          <span>Built with ❤️ by <a className="footer-credit" href="https://www.madhankumart.in" target="_blank" rel="noopener noreferrer">Madhan Kumar T</a></span>
+          <span>Built with Passion by <a className="footer-credit" href="https://www.madhankumart.in" target="_blank" rel="noopener noreferrer">Madhan Kumar T</a></span>
         </div>
       </footer>
     </main>
