@@ -391,6 +391,29 @@
   transform: translateY(-1px);
 }
 
+.date-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 9px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  font-size: 0.8rem;
+  color: #475569;
+}
+
+.date-badge-icon {
+  color: #2563eb;
+  flex-shrink: 0;
+}
+
+.date-badge strong {
+  color: #0f172a;
+  font-weight: 700;
+}
+
 /* Feature Cards */
 .feature-cards {
   display: flex;

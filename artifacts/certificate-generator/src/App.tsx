@@ -1,7 +1,33 @@
-import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
-import { Award, Check, CheckCircle2, Download, ShieldCheck, Sparkles } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { Award, Calendar, Check, CheckCircle2, Download, ShieldCheck, Sparkles } from 'lucide-react';
 import certificateTemplate from '@assets/certificate_template_biher.png';
 import appLogo from '@assets/gsa_logo.png';
+
+function getOrdinalSuffix(day: number): string {
+  if (day >= 11 && day <= 13) {
+    return 'th';
+  }
+  switch (day % 10) {
+    case 1:
+      return 'st';
+    case 2:
+      return 'nd';
+    case 3:
+      return 'rd';
+    default:
+      return 'th';
+  }
+}
+
+function formatCertificateDate(date: Date = new Date()): string {
+  const day = date.getDate();
+  const dayStr = String(day).padStart(2, '0');
+  const suffix = getOrdinalSuffix(day);
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const month = months[date.getMonth()];
+  const year = date.getFullYear();
+  return `${dayStr}${suffix} ${month} , ${year}`;
+}
 
 const CERTIFICATE_CONFIG = {
   templateImage: certificateTemplate as string | null,
@@ -13,6 +39,15 @@ const CERTIFICATE_CONFIG = {
     fontFamily: "'Plus Jakarta Sans', 'DM Sans', 'Segoe UI', Arial, sans-serif",
     fontSize: 28,
     color: '#0f172a',
+    textAlign: 'center' as CanvasTextAlign,
+  },
+  date: {
+    x: 228,
+    y: 654,
+    fontFamily: "'Product Sans', 'Google Sans', 'Plus Jakarta Sans', 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif",
+    fontSize: 19,
+    fontWeight: '700',
+    color: '#000000',
     textAlign: 'center' as CanvasTextAlign,
   },
 };
@@ -78,8 +113,9 @@ function drawFallbackCertificate(
   context.fillText('for showing up, taking part, and making the moment count.', width / 2, 778);
 
   context.fillStyle = navy;
-  context.font = '600 23px "DM Sans"';
-  context.fillText('EVENT DAY  •  2025', width / 2, 920);
+  context.fillStyle = navy;
+  context.font = '600 21px "DM Sans"';
+  context.fillText(`EVENT DAY  •  ${formatCertificateDate()}`, width / 2, 920);
 
   context.fillStyle = coral;
   context.font = '500 19px "DM Sans"';
@@ -128,12 +164,31 @@ function useCertificateRenderer(canvasRef: RefObject<HTMLCanvasElement | null>, 
       context.fillText(textToDraw, CERTIFICATE_CONFIG.name.x, CERTIFICATE_CONFIG.name.y);
     };
 
+    const drawCertificateDate = () => {
+      if (cancelled) return;
+      const dateText = formatCertificateDate();
+      context.font = `${CERTIFICATE_CONFIG.date.fontWeight} ${CERTIFICATE_CONFIG.date.fontSize}px ${CERTIFICATE_CONFIG.date.fontFamily}`;
+      context.fillStyle = CERTIFICATE_CONFIG.date.color;
+      context.textAlign = CERTIFICATE_CONFIG.date.textAlign;
+      context.textBaseline = 'alphabetic';
+      context.fillText(dateText, CERTIFICATE_CONFIG.date.x, CERTIFICATE_CONFIG.date.y);
+    };
+
     if (CERTIFICATE_CONFIG.templateImage) {
       const image = new Image();
-      image.onload = () => {
+      image.onload = async () => {
+        if (cancelled) return;
+        if (document.fonts?.ready) {
+          try {
+            await document.fonts.ready;
+          } catch {
+            // Proceed if document.fonts.ready rejects
+          }
+        }
         if (cancelled) return;
         context.drawImage(image, 0, 0, CERTIFICATE_CONFIG.width, CERTIFICATE_CONFIG.height);
         drawParticipantName();
+        drawCertificateDate();
       };
       image.onerror = () => {
         if (!cancelled) {
@@ -291,6 +346,11 @@ function App() {
                       Download Certificate (PNG)
                     </button>
                   )}
+                </div>
+
+                <div className="date-badge" data-testid="badge-certificate-date">
+                  <Calendar size={15} className="date-badge-icon" />
+                  <span>Issue Date: <strong>{formatCertificateDate()}</strong> (Auto-stamped)</span>
                 </div>
               </form>
             </div>
