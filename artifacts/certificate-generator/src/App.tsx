@@ -1,7 +1,33 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
-import { Award, Calendar, Check, CheckCircle2, Download, ShieldCheck, Sparkles } from 'lucide-react';
+import {
+  AlertTriangle,
+  Award,
+  Calendar,
+  Check,
+  CheckCircle2,
+  Download,
+  FileText,
+  LogOut,
+  Mail,
+  RefreshCw,
+  Share2,
+  ShieldAlert,
+  ShieldCheck,
+  Sparkles,
+  User,
+} from 'lucide-react';
 import certificateTemplate from '@assets/certificate_template_biher.png';
 import appLogo from '@assets/gsa_logo.png';
+import { AttendeeLogin } from './components/AttendeeLogin';
+import {
+  getCurrentAttendee,
+  getAttendeeClaim,
+  hasAttendeeReachedLimit,
+  logoutAttendee,
+  recordAttendeeCertificate,
+  type ClaimedCertificate,
+} from './services/auth-service';
+import type { AttendeeRecord } from './data/attendees';
 
 function getOrdinalSuffix(day: number): string {
   if (day >= 11 && day <= 13) {
@@ -19,14 +45,11 @@ function getOrdinalSuffix(day: number): string {
   }
 }
 
-function formatCertificateDate(date: Date = new Date()): string {
-  const day = date.getDate();
-  const dayStr = String(day).padStart(2, '0');
-  const suffix = getOrdinalSuffix(day);
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const month = months[date.getMonth()];
-  const year = date.getFullYear();
-  return `${dayStr}${suffix} ${month} , ${year}`;
+export const STATIC_CERTIFICATE_DATE = '08th Sep , 2026';
+export const STATIC_INITIATIVE_NAME = 'Orientation Program';
+
+function formatCertificateDate(): string {
+  return STATIC_CERTIFICATE_DATE;
 }
 
 const CERTIFICATE_CONFIG = {
@@ -42,6 +65,7 @@ const CERTIFICATE_CONFIG = {
     textAlign: 'center' as CanvasTextAlign,
   },
   date: {
+    text: STATIC_CERTIFICATE_DATE,
     x: 228,
     y: 654,
     fontFamily: "'Product Sans', 'Google Sans', 'Plus Jakarta Sans', 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif",
@@ -50,6 +74,22 @@ const CERTIFICATE_CONFIG = {
     color: '#000000',
     textAlign: 'center' as CanvasTextAlign,
   },
+  initiative: {
+    text: STATIC_INITIATIVE_NAME,
+    x: 508,
+    y: 654,
+    fontFamily: "'Product Sans', 'Google Sans', 'Plus Jakarta Sans', 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif",
+    fontSize: 19,
+    fontWeight: '700',
+    color: '#000000',
+    textAlign: 'center' as CanvasTextAlign,
+  },
+  signature: {
+    // Signature will be updated later
+    image: null as string | null,
+    x: 796,
+    y: 654,
+  },
 };
 
 function drawFallbackCertificate(
@@ -57,6 +97,8 @@ function drawFallbackCertificate(
   name: string,
   width: number,
   height: number,
+  dateStr: string = STATIC_CERTIFICATE_DATE,
+  initiativeStr: string = STATIC_INITIATIVE_NAME
 ) {
   const navy = '#253252';
   const gold = '#dba548';
@@ -72,26 +114,6 @@ function drawFallbackCertificate(
   context.lineWidth = 2;
   context.strokeRect(58, 58, width - 116, height - 116);
 
-  const drawSeal = (x: number, y: number, radius: number) => {
-    context.beginPath();
-    context.arc(x, y, radius, 0, Math.PI * 2);
-    context.strokeStyle = gold;
-    context.lineWidth = 4;
-    context.stroke();
-    context.beginPath();
-    context.arc(x, y, radius - 13, 0, Math.PI * 2);
-    context.strokeStyle = 'rgba(201, 91, 80, .5)';
-    context.lineWidth = 2;
-    context.stroke();
-    context.fillStyle = coral;
-    context.font = '700 24px "DM Sans"';
-    context.textAlign = 'center';
-    context.fillText('•  •  •', x, y + 8);
-  };
-
-  drawSeal(142, 142, 47);
-  drawSeal(width - 142, height - 142, 47);
-
   context.fillStyle = coral;
   context.font = '600 25px "DM Sans"';
   context.textAlign = 'center';
@@ -101,41 +123,27 @@ function drawFallbackCertificate(
   context.font = '500 82px Fraunces, Georgia, serif';
   context.fillText('This certificate belongs to', width / 2, 393);
 
-  context.strokeStyle = gold;
-  context.lineWidth = 3;
-  context.beginPath();
-  context.moveTo(350, 667);
-  context.lineTo(width - 350, 667);
-  context.stroke();
-
-  context.fillStyle = '#6d7180';
-  context.font = '500 26px "DM Sans"';
-  context.fillText('for showing up, taking part, and making the moment count.', width / 2, 778);
-
   context.fillStyle = navy;
-  context.fillStyle = navy;
-  context.font = '600 21px "DM Sans"';
-  context.fillText(`EVENT DAY  •  ${formatCertificateDate()}`, width / 2, 920);
-
-  context.fillStyle = coral;
-  context.font = '500 19px "DM Sans"';
-  context.fillText('A SMALL RECORD OF A BIG MOMENT', width / 2, 975);
-
-  context.fillStyle = navy;
-  context.font = '600 18px "DM Sans"';
-  context.fillText('MOMENT / CERTIFICATE', width / 2, 1043);
-
-  context.fillStyle = '#c8b98f';
-  context.font = '18px "DM Sans"';
-  context.fillText('TEMPLATE PREVIEW', width / 2, 1091);
-
-  context.fillStyle = navy;
-  context.font = `500 ${CERTIFICATE_CONFIG.name.fontSize}px ${CERTIFICATE_CONFIG.name.fontFamily}, Georgia, serif`;
+  context.font = `700 ${CERTIFICATE_CONFIG.name.fontSize}px ${CERTIFICATE_CONFIG.name.fontFamily}, Georgia, serif`;
   context.textAlign = CERTIFICATE_CONFIG.name.textAlign;
   context.fillText(name || 'Your name here', CERTIFICATE_CONFIG.name.x, CERTIFICATE_CONFIG.name.y);
+
+  // Date and Initiative
+  context.fillStyle = '#000000';
+  context.font = `700 ${CERTIFICATE_CONFIG.date.fontSize}px ${CERTIFICATE_CONFIG.date.fontFamily}`;
+  context.textAlign = CERTIFICATE_CONFIG.date.textAlign;
+  context.fillText(dateStr || STATIC_CERTIFICATE_DATE, CERTIFICATE_CONFIG.date.x, CERTIFICATE_CONFIG.date.y);
+
+  context.textAlign = CERTIFICATE_CONFIG.initiative.textAlign;
+  context.fillText(initiativeStr || STATIC_INITIATIVE_NAME, CERTIFICATE_CONFIG.initiative.x, CERTIFICATE_CONFIG.initiative.y);
 }
 
-function useCertificateRenderer(canvasRef: RefObject<HTMLCanvasElement | null>, name: string) {
+function useCertificateRenderer(
+  canvasRef: RefObject<HTMLCanvasElement | null>,
+  name: string,
+  dateStr: string = STATIC_CERTIFICATE_DATE,
+  initiativeStr: string = STATIC_INITIATIVE_NAME
+) {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -166,12 +174,32 @@ function useCertificateRenderer(canvasRef: RefObject<HTMLCanvasElement | null>, 
 
     const drawCertificateDate = () => {
       if (cancelled) return;
-      const dateText = formatCertificateDate();
+      const displayDate = dateStr || STATIC_CERTIFICATE_DATE;
       context.font = `${CERTIFICATE_CONFIG.date.fontWeight} ${CERTIFICATE_CONFIG.date.fontSize}px ${CERTIFICATE_CONFIG.date.fontFamily}`;
       context.fillStyle = CERTIFICATE_CONFIG.date.color;
       context.textAlign = CERTIFICATE_CONFIG.date.textAlign;
       context.textBaseline = 'alphabetic';
-      context.fillText(dateText, CERTIFICATE_CONFIG.date.x, CERTIFICATE_CONFIG.date.y);
+      context.fillText(displayDate, CERTIFICATE_CONFIG.date.x, CERTIFICATE_CONFIG.date.y);
+    };
+
+    const drawInitiativeName = () => {
+      if (cancelled) return;
+      const displayInitiative = initiativeStr || STATIC_INITIATIVE_NAME;
+      let fontSize = CERTIFICATE_CONFIG.initiative.fontSize;
+      const maxTextWidth = 210;
+      context.font = `${CERTIFICATE_CONFIG.initiative.fontWeight} ${fontSize}px ${CERTIFICATE_CONFIG.initiative.fontFamily}`;
+
+      let textWidth = context.measureText(displayInitiative).width;
+      while (textWidth > maxTextWidth && fontSize > 13) {
+        fontSize -= 1;
+        context.font = `${CERTIFICATE_CONFIG.initiative.fontWeight} ${fontSize}px ${CERTIFICATE_CONFIG.initiative.fontFamily}`;
+        textWidth = context.measureText(displayInitiative).width;
+      }
+
+      context.fillStyle = CERTIFICATE_CONFIG.initiative.color;
+      context.textAlign = CERTIFICATE_CONFIG.initiative.textAlign;
+      context.textBaseline = 'alphabetic';
+      context.fillText(displayInitiative, CERTIFICATE_CONFIG.initiative.x, CERTIFICATE_CONFIG.initiative.y);
     };
 
     if (CERTIFICATE_CONFIG.templateImage) {
@@ -182,17 +210,18 @@ function useCertificateRenderer(canvasRef: RefObject<HTMLCanvasElement | null>, 
           try {
             await document.fonts.ready;
           } catch {
-            // Proceed if document.fonts.ready rejects
+            // ignore
           }
         }
         if (cancelled) return;
         context.drawImage(image, 0, 0, CERTIFICATE_CONFIG.width, CERTIFICATE_CONFIG.height);
         drawParticipantName();
         drawCertificateDate();
+        drawInitiativeName();
       };
       image.onerror = () => {
         if (!cancelled) {
-          drawFallbackCertificate(context, name, CERTIFICATE_CONFIG.width, CERTIFICATE_CONFIG.height);
+          drawFallbackCertificate(context, name, CERTIFICATE_CONFIG.width, CERTIFICATE_CONFIG.height, dateStr, initiativeStr);
         }
       };
       image.src = CERTIFICATE_CONFIG.templateImage;
@@ -201,50 +230,151 @@ function useCertificateRenderer(canvasRef: RefObject<HTMLCanvasElement | null>, 
       };
     }
 
-    drawFallbackCertificate(context, name, CERTIFICATE_CONFIG.width, CERTIFICATE_CONFIG.height);
+    drawFallbackCertificate(context, name, CERTIFICATE_CONFIG.width, CERTIFICATE_CONFIG.height, dateStr, initiativeStr);
 
     return () => {
       cancelled = true;
     };
-  }, [canvasRef, name]);
+  }, [canvasRef, name, dateStr, initiativeStr]);
 }
 
 function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [attendee, setAttendee] = useState<AttendeeRecord | null>(() => getCurrentAttendee());
+  const [existingClaim, setExistingClaim] = useState<ClaimedCertificate | null>(null);
+
   const [name, setName] = useState('');
-  const [generatedName, setGeneratedName] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [hasGenerated, setHasGenerated] = useState(false);
+  const [hasGeneratedCurrent, setHasGeneratedCurrent] = useState(false);
+  const [limitReachedError, setLimitReachedError] = useState(false);
   const [statusMessage, setStatusMessage] = useState('Enter your name to preview and download your certificate.');
 
-  useCertificateRenderer(canvasRef, generatedName || name);
+  // Check if current attendee has already generated
+  useEffect(() => {
+    if (attendee) {
+      if (attendee.isUnlimited) {
+        setExistingClaim(null);
+        setName('');
+        setHasGeneratedCurrent(false);
+        setStatusMessage('Admin Mode (Unlimited): You can generate and download multiple certificates.');
+        return;
+      }
+      const claim = getAttendeeClaim(attendee.email);
+      if (claim) {
+        setExistingClaim(claim);
+        setName(claim.participantName);
+        setStatusMessage(`Certificate previously generated for ${claim.participantName}.`);
+      } else {
+        setExistingClaim(null);
+        setName('');
+        setHasGeneratedCurrent(false);
+        setStatusMessage('Enter your name to preview and download your certificate.');
+      }
+    } else {
+      setExistingClaim(null);
+      setName('');
+      setHasGeneratedCurrent(false);
+    }
+  }, [attendee]);
+
+  const activeName = (!attendee?.isUnlimited && existingClaim) ? existingClaim.participantName : name;
+  const activeDate = STATIC_CERTIFICATE_DATE;
+  const activeInitiative = STATIC_INITIATIVE_NAME;
+
+  useCertificateRenderer(canvasRef, activeName, activeDate, activeInitiative);
+
+  const handleLoginSuccess = (user: AttendeeRecord) => {
+    setAttendee(user);
+    setLimitReachedError(false);
+  };
+
+  const handleLogout = () => {
+    logoutAttendee();
+    setAttendee(null);
+    setExistingClaim(null);
+    setName('');
+    setHasGeneratedCurrent(false);
+    setLimitReachedError(false);
+  };
 
   const handleGenerate = useCallback(() => {
+    if (!attendee) return;
+
+    // Check limit enforcement (bypassed for unlimited accounts)
+    if (!attendee.isUnlimited && (hasAttendeeReachedLimit(attendee.email) || existingClaim)) {
+      setLimitReachedError(true);
+      setStatusMessage('You have reached your limit. Each login can generate only one certificate.');
+      return;
+    }
+
     const trimmedName = name.trim();
     if (!trimmedName || isGenerating) {
       setStatusMessage('Please enter your full name first.');
       return;
     }
-    setIsGenerating(true);
-    setStatusMessage('Generating your certificate…');
-    window.setTimeout(() => {
-      setGeneratedName(trimmedName);
-      setHasGenerated(true);
-      setIsGenerating(false);
-      setStatusMessage(`Ready for ${trimmedName}! You can now download it.`);
-    }, 400);
-  }, [isGenerating, name]);
 
-  const handleDownload = useCallback(() => {
+    setIsGenerating(true);
+    setStatusMessage('Generating your official certificate…');
+
+    window.setTimeout(() => {
+      const canvas = canvasRef.current;
+      const dataUrl = canvas ? canvas.toDataURL('image/png') : '';
+      const issueDate = STATIC_CERTIFICATE_DATE;
+      const initiativeName = STATIC_INITIATIVE_NAME;
+
+      const result = recordAttendeeCertificate(
+        attendee.email,
+        attendee.phone,
+        trimmedName,
+        issueDate,
+        dataUrl,
+        attendee.isUnlimited,
+        initiativeName
+      );
+
+      setIsGenerating(false);
+
+      if (result.success) {
+        if (!attendee.isUnlimited && result.claim) {
+          setExistingClaim(result.claim);
+        }
+        setHasGeneratedCurrent(true);
+        setLimitReachedError(false);
+        setStatusMessage(
+          attendee.isUnlimited
+            ? `Official certificate generated for ${trimmedName}! Ready to download.`
+            : `Official certificate ready for ${trimmedName}!`
+        );
+      } else {
+        setLimitReachedError(true);
+        setStatusMessage(result.error || 'You have reached your limit.');
+      }
+    }, 450);
+  }, [attendee, existingClaim, isGenerating, name]);
+
+  const handleDownloadPng = useCallback(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !hasGenerated) return;
+    if (!canvas) return;
+    const downloadName = (!attendee?.isUnlimited && existingClaim) ? existingClaim.participantName : name;
+    const safeFilename = `${(downloadName || 'certificate').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'certificate'}-google-freshers-fuse.png`;
     const link = document.createElement('a');
-    const safeFilename = `${generatedName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'certificate'}-participation.png`;
     link.download = safeFilename;
     link.href = canvas.toDataURL('image/png');
     link.click();
     setStatusMessage('Certificate downloaded successfully! 🎉');
-  }, [generatedName, hasGenerated]);
+  }, [attendee?.isUnlimited, existingClaim, name]);
+
+  // If user is not logged in, render the login page
+  if (!attendee) {
+    return (
+      <main className="app-shell">
+        <AttendeeLogin onLoginSuccess={handleLoginSuccess} />
+      </main>
+    );
+  }
+
+  const isClaimed = !attendee.isUnlimited && Boolean(existingClaim);
+  const canDownload = isClaimed || (Boolean(attendee.isUnlimited) && hasGeneratedCurrent);
 
   return (
     <main className="app-shell">
@@ -260,31 +390,83 @@ function App() {
             <span className="brand-subtitle">BIHER Campus Community</span>
           </div>
         </div>
+
         <div className="event-badge-container">
           <span className="event-badge">
             <Sparkles size={14} />
             Google Fresher&apos;s Fuse 2026
           </span>
         </div>
-        <div className="portal-status">
-          <span className="status-dot"></span>
-          <span>Official Event Portal</span>
+
+        {/* User status & Logout */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 border border-slate-200 text-xs text-slate-700">
+            <User size={13} className={attendee.isUnlimited ? "text-amber-600" : "text-blue-600"} />
+            <span className="font-medium truncate max-w-[180px]">
+              {attendee.email}{attendee.isUnlimited ? ' (Unlimited)' : ''}
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition-colors"
+            data-testid="button-attendee-logout"
+          >
+            <LogOut size={13} />
+            <span>Sign Out</span>
+          </button>
         </div>
       </header>
 
+      {/* Main Content Area */}
       <section className="hero" aria-labelledby="page-title">
         <div className="hero-grid">
           <div className="intro">
             <div className="welcome-tag">
-              <span>🎓 Welcome, Freshers Batch of 2026!</span>
+              <span>
+                {attendee.isUnlimited
+                  ? `⭐ Unlimited Access: ${attendee.email}`
+                  : `🎓 Verified Attendee: ${attendee.email}`}
+              </span>
             </div>
+
             <h1 id="page-title" className="headline">
               Claim Your Event <span className="text-gradient">Certificate</span>
             </h1>
-            <p className="intro-copy">
-              Congratulations on participating in <strong>Google Fresher&apos;s Fuse 2026</strong>!
-              Enter your full name below to instantly generate and download your verified certificate of participation.
-            </p>
+
+            {/* If user has reached their limit, show prominent restriction banner */}
+            {(isClaimed || (!attendee.isUnlimited && limitReachedError)) && (
+              <div className="limit-reached-banner" data-testid="banner-limit-reached">
+                <div className="flex items-start gap-3">
+                  <ShieldAlert size={22} className="text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <h3 className="font-bold text-amber-900 text-base">You have reached your limit.</h3>
+                    <p className="mt-1 text-xs sm:text-sm text-amber-800 leading-relaxed">
+                      You have already generated your official certificate of participation for <strong>Google Fresher&apos;s Fuse 2026</strong>.
+                      Each attendee login is allocated exactly <strong>one certificate</strong> to preserve verification integrity.
+                    </p>
+                    {existingClaim && (
+                      <div className="mt-2 text-xs font-semibold text-amber-950 bg-amber-100/80 px-2.5 py-1.5 rounded-md inline-block">
+                        Issued to: {existingClaim.participantName} • Issue Date: {existingClaim.issueDate}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {attendee.isUnlimited ? (
+              <p className="intro-copy">
+                Welcome to <strong>Admin Access Mode</strong> for <strong>Google Fresher&apos;s Fuse 2026</strong>.
+                This account has <strong>unlimited certificate generation</strong> permissions without the 1-certificate restriction.
+              </p>
+            ) : !isClaimed ? (
+              <p className="intro-copy">
+                Congratulations on attending <strong>Google Fresher&apos;s Fuse 2026</strong>!
+                Enter your full name below to generate your official verified certificate. <strong>Note: You can only generate your certificate once.</strong>
+              </p>
+            ) : null}
 
             <div className="entry-card">
               <form
@@ -296,7 +478,7 @@ function App() {
               >
                 <div className="form-group">
                   <label htmlFor="certificate-name" className="entry-label">
-                    Your Full Name
+                    Participant Full Name
                   </label>
                   <div className="input-wrapper">
                     <input
@@ -306,41 +488,70 @@ function App() {
                       type="text"
                       value={name}
                       onChange={(event) => {
-                        setName(event.target.value);
-                        if (hasGenerated) {
-                          setHasGenerated(false);
-                          setGeneratedName('');
+                        if (!isClaimed) {
+                          setName(event.target.value);
+                          if (attendee.isUnlimited) {
+                            setHasGeneratedCurrent(false);
+                          }
+                          setStatusMessage('Enter your name to preview your certificate.');
                         }
-                        setStatusMessage('Enter your name to preview your certificate.');
                       }}
-                      placeholder="e.g. Rahul Sharma"
+                      disabled={isClaimed}
+                      placeholder={isClaimed ? existingClaim?.participantName : 'e.g. Rahul Sharma'}
                       autoComplete="name"
                       autoCapitalize="words"
                       maxLength={48}
                       required
                     />
                   </div>
-                  <p className="input-hint">
-                    💡 Please check your spelling carefully. It will appear exactly as typed on your certificate.
-                  </p>
+                  {isClaimed ? (
+                    <p className="input-hint text-amber-700 font-medium">
+                      🔒 Name is locked because your certificate has already been generated.
+                    </p>
+                  ) : attendee.isUnlimited ? (
+                    <p className="input-hint text-blue-700 font-medium">
+                      ✨ Unlimited mode: You can enter any name and generate multiple certificates.
+                    </p>
+                  ) : (
+                    <p className="input-hint">
+                      💡 Please ensure spelling is accurate before generating. Each account is limited to 1 generation.
+                    </p>
+                  )}
                 </div>
 
                 <div className="button-group">
-                  <button
-                    type="submit"
-                    className="generate-button"
-                    data-testid="button-generate-certificate"
-                    disabled={isGenerating || !name.trim()}
-                  >
-                    <Award size={18} aria-hidden="true" />
-                    {isGenerating ? 'Generating Certificate…' : hasGenerated ? 'Update Certificate' : 'Generate Certificate'}
-                  </button>
+                  {!isClaimed ? (
+                    <button
+                      type="submit"
+                      className="generate-button"
+                      data-testid="button-generate-certificate"
+                      disabled={isGenerating || !name.trim()}
+                    >
+                      <Award size={18} aria-hidden="true" />
+                      {isGenerating
+                        ? 'Generating Certificate…'
+                        : attendee.isUnlimited
+                        ? 'Generate Certificate'
+                        : 'Generate Certificate (1-Time)'}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="generate-button opacity-60 cursor-not-allowed bg-slate-400"
+                      disabled={true}
+                      data-testid="button-generate-disabled"
+                    >
+                      <ShieldAlert size={18} />
+                      Limit Reached (1 of 1 Claimed)
+                    </button>
+                  )}
 
-                  {hasGenerated && (
+                  {(isClaimed || (attendee.isUnlimited && hasGeneratedCurrent)) && (
                     <button
                       type="button"
                       className="quick-download-button"
-                      onClick={handleDownload}
+                      onClick={handleDownloadPng}
+                      data-testid="button-download-quick"
                     >
                       <Download size={18} aria-hidden="true" />
                       Download Certificate (PNG)
@@ -350,7 +561,7 @@ function App() {
 
                 <div className="date-badge" data-testid="badge-certificate-date">
                   <Calendar size={15} className="date-badge-icon" />
-                  <span>Issue Date: <strong>{formatCertificateDate()}</strong> (Auto-stamped)</span>
+                  <span>Date: <strong>{STATIC_CERTIFICATE_DATE}</strong> • Initiative: <strong>{STATIC_INITIATIVE_NAME}</strong></span>
                 </div>
               </form>
             </div>
@@ -370,8 +581,8 @@ function App() {
                   <Download size={16} />
                 </div>
                 <div>
-                  <strong>High-Resolution Export</strong>
-                  <p>Ready to showcase on LinkedIn, portfolio, and resumes</p>
+                  <strong>Unlimited Re-Downloads</strong>
+                  <p>Sign back in anytime with your credentials to download your copy</p>
                 </div>
               </div>
               <div className="feature-item">
@@ -379,46 +590,57 @@ function App() {
                   <ShieldCheck size={16} />
                 </div>
                 <div>
-                  <strong>Private &amp; Instant</strong>
-                  <p>Generated directly in your browser without signups</p>
+                  <strong>Verified Attendance</strong>
+                  <p>Protected by attendee registration and credential validation</p>
                 </div>
               </div>
             </div>
           </div>
 
+          {/* Right Column: Preview and Download */}
           <div className="preview-column">
             <div className="preview-header">
               <div className="preview-title-area">
                 <h2>Certificate Preview</h2>
-                <p>Live preview of your official participation certificate</p>
+                <p>Live render of your official participation certificate</p>
               </div>
-              <span className={`preview-badge ${hasGenerated ? 'badge-ready' : 'badge-draft'}`}>
-                {hasGenerated ? '✓ Ready to Download' : 'Live Preview'}
+              <span className={`preview-badge ${canDownload ? 'badge-ready' : 'badge-draft'}`}>
+                {canDownload
+                  ? attendee.isUnlimited
+                    ? '✓ Certificate Ready'
+                    : '✓ Generated & Verified'
+                  : 'Live Preview'}
               </span>
             </div>
 
-            <div className={`canvas-frame${hasGenerated ? ' generated' : ''}`} data-testid="certificate-preview">
+            <div className={`canvas-frame${canDownload ? ' generated' : ''}`} data-testid="certificate-preview">
               <canvas
                 ref={canvasRef}
                 className="certificate-canvas"
-                aria-label={hasGenerated ? `Certificate for ${generatedName}` : 'Certificate preview'}
+                aria-label={isClaimed ? `Certificate for ${activeName}` : 'Certificate preview'}
                 role="img"
               />
               {isGenerating && (
                 <div className="canvas-loading" data-testid="status-generating" aria-live="polite">
                   <div className="loading-spinner"></div>
-                  <span>Rendering certificate…</span>
+                  <span>Generating certificate…</span>
                 </div>
               )}
             </div>
 
             <div className="result-bar">
               <div className="result-status" data-testid="status-certificate">
-                <span className={`result-status-icon ${hasGenerated ? 'icon-success' : 'icon-pending'}`} aria-hidden="true">
-                  {hasGenerated ? <Check size={18} /> : <Award size={18} />}
+                <span className={`result-status-icon ${canDownload ? 'icon-success' : 'icon-pending'}`} aria-hidden="true">
+                  {canDownload ? <Check size={18} /> : <Award size={18} />}
                 </span>
                 <div className="result-status-text">
-                  <strong>{hasGenerated ? 'Certificate Ready!' : 'Waiting for Name'}</strong>
+                  <strong>
+                    {canDownload
+                      ? attendee.isUnlimited
+                        ? 'Certificate Ready!'
+                        : 'Certificate Verified!'
+                      : 'Waiting for Name'}
+                  </strong>
                   <span>{statusMessage}</span>
                 </div>
               </div>
@@ -426,8 +648,8 @@ function App() {
                 type="button"
                 className="download-button"
                 data-testid="button-download-certificate"
-                onClick={handleDownload}
-                disabled={!hasGenerated || isGenerating}
+                onClick={handleDownloadPng}
+                disabled={!canDownload || isGenerating}
               >
                 <Download size={17} aria-hidden="true" />
                 <span>Download PNG</span>
