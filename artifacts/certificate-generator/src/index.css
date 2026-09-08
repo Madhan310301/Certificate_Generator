@@ -655,6 +655,19 @@
   font-weight: 700;
 }
 
+.share-prompt a {
+  color: #1d4ed8;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  word-break: break-all;
+  transition: color 0.15s ease;
+}
+
+.share-prompt a:hover {
+  color: #1e3a8a;
+}
+
 /* Footer */
 .footer {
   position: relative;

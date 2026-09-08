@@ -138,6 +138,27 @@ function drawFallbackCertificate(
   context.fillText(initiativeStr || STATIC_INITIATIVE_NAME, CERTIFICATE_CONFIG.initiative.x, CERTIFICATE_CONFIG.initiative.y);
 }
 
+let cachedTemplateImage: HTMLImageElement | null = null;
+let imageLoadPromise: Promise<HTMLImageElement> | null = null;
+
+function loadTemplateImage(src: string): Promise<HTMLImageElement> {
+  if (cachedTemplateImage && cachedTemplateImage.complete && cachedTemplateImage.naturalWidth > 0) {
+    return Promise.resolve(cachedTemplateImage);
+  }
+  if (!imageLoadPromise) {
+    imageLoadPromise = new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        cachedTemplateImage = img;
+        resolve(img);
+      };
+      img.onerror = (e) => reject(e);
+      img.src = src;
+    });
+  }
+  return imageLoadPromise;
+}
+
 function useCertificateRenderer(
   canvasRef: RefObject<HTMLCanvasElement | null>,
   name: string,
@@ -202,29 +223,30 @@ function useCertificateRenderer(
       context.fillText(displayInitiative, CERTIFICATE_CONFIG.initiative.x, CERTIFICATE_CONFIG.initiative.y);
     };
 
+    const renderAll = (img: HTMLImageElement) => {
+      if (cancelled) return;
+      context.clearRect(0, 0, CERTIFICATE_CONFIG.width, CERTIFICATE_CONFIG.height);
+      context.drawImage(img, 0, 0, CERTIFICATE_CONFIG.width, CERTIFICATE_CONFIG.height);
+      drawParticipantName();
+      drawCertificateDate();
+      drawInitiativeName();
+    };
+
     if (CERTIFICATE_CONFIG.templateImage) {
-      const image = new Image();
-      image.onload = async () => {
-        if (cancelled) return;
-        if (document.fonts?.ready) {
-          try {
-            await document.fonts.ready;
-          } catch {
-            // ignore
-          }
-        }
-        if (cancelled) return;
-        context.drawImage(image, 0, 0, CERTIFICATE_CONFIG.width, CERTIFICATE_CONFIG.height);
-        drawParticipantName();
-        drawCertificateDate();
-        drawInitiativeName();
-      };
-      image.onerror = () => {
-        if (!cancelled) {
-          drawFallbackCertificate(context, name, CERTIFICATE_CONFIG.width, CERTIFICATE_CONFIG.height, dateStr, initiativeStr);
-        }
-      };
-      image.src = CERTIFICATE_CONFIG.templateImage;
+      if (cachedTemplateImage && cachedTemplateImage.complete && cachedTemplateImage.naturalWidth > 0) {
+        renderAll(cachedTemplateImage);
+      } else {
+        loadTemplateImage(CERTIFICATE_CONFIG.templateImage)
+          .then((img) => {
+            if (!cancelled) renderAll(img);
+          })
+          .catch(() => {
+            if (!cancelled) {
+              drawFallbackCertificate(context, name, CERTIFICATE_CONFIG.width, CERTIFICATE_CONFIG.height, dateStr, initiativeStr);
+            }
+          });
+      }
+
       return () => {
         cancelled = true;
       };
@@ -656,12 +678,21 @@ function App() {
               </button>
             </div>
 
-            <div className="share-prompt">
-              <Sparkles size={16} className="text-blue-600 shrink-0" />
-              <span>
-                Celebrating your college start? Post on LinkedIn with <strong>#GoogleFreshersFuse</strong> and tag <strong>@BIHER</strong>!
-              </span>
-            </div>
+            {canDownload && (
+              <div className="share-prompt" data-testid="share-prompt-linkedin">
+                <Sparkles size={16} className="text-blue-600 shrink-0" />
+                <span>
+                  Tag us in the caption:{' '}
+                  <a
+                    href="https://www.linkedin.com/in/madhankumart"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    www.linkedin.com/in/madhankumart
+                  </a>
+                </span>
+              </div>
+            )}
           </div>
         </div>
       </section>
