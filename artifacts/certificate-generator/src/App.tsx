@@ -688,7 +688,7 @@ function App() {
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    www.linkedin.com/in/madhankumart
+                    Madhan Kumar T
                   </a>
                 </span>
               </div>
