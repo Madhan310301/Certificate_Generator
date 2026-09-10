@@ -18,6 +18,10 @@ import {
 } from 'lucide-react';
 import certificateTemplate from '@assets/certificate_template_biher.png';
 import appLogo from '@assets/gsa_logo.png';
+import madhanSign from '@/assets/signatures/madhan_sign.png';
+import prakashSign from '@/assets/signatures/prakash_sign.png';
+import deepaSign from '@/assets/signatures/deepa_sign.png';
+import kishorSign from '@/assets/signatures/kishor_sign.png';
 import { AttendeeLogin } from './components/AttendeeLogin';
 import {
   getCurrentAttendee,
@@ -27,7 +31,42 @@ import {
   recordAttendeeCertificate,
   type ClaimedCertificate,
 } from './services/auth-service';
-import type { AttendeeRecord } from './data/attendees';
+import {
+  SIGNER_DETAILS,
+  type AttendeeRecord,
+  type SignerKey,
+  type SignerInfo,
+} from './data/attendees';
+
+export const SIGNATURE_IMAGES: Record<SignerKey, string> = {
+  madhan: madhanSign,
+  prakash: prakashSign,
+  deepa: deepaSign,
+  kishor: kishorSign,
+};
+
+const cachedSignatureImages: Partial<Record<SignerKey, HTMLImageElement>> = {};
+
+function loadSignatureImage(signerKey: SignerKey): Promise<HTMLImageElement> {
+  const src = SIGNATURE_IMAGES[signerKey];
+  if (
+    cachedSignatureImages[signerKey] &&
+    cachedSignatureImages[signerKey]!.complete &&
+    cachedSignatureImages[signerKey]!.naturalWidth > 0
+  ) {
+    return Promise.resolve(cachedSignatureImages[signerKey]!);
+  }
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      cachedSignatureImages[signerKey] = img;
+      resolve(img);
+    };
+    img.onerror = reject;
+    img.src = src;
+  });
+}
 
 function getOrdinalSuffix(day: number): string {
   if (day >= 11 && day <= 13) {
@@ -85,10 +124,9 @@ const CERTIFICATE_CONFIG = {
     textAlign: 'center' as CanvasTextAlign,
   },
   signature: {
-    // Signature will be updated later
-    image: null as string | null,
     x: 796,
     y: 654,
+    width: 190,
   },
 };
 
@@ -163,7 +201,8 @@ function useCertificateRenderer(
   canvasRef: RefObject<HTMLCanvasElement | null>,
   name: string,
   dateStr: string = STATIC_CERTIFICATE_DATE,
-  initiativeStr: string = STATIC_INITIATIVE_NAME
+  initiativeStr: string = STATIC_INITIATIVE_NAME,
+  signerKey: SignerKey = 'madhan'
 ) {
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -223,29 +262,46 @@ function useCertificateRenderer(
       context.fillText(displayInitiative, CERTIFICATE_CONFIG.initiative.x, CERTIFICATE_CONFIG.initiative.y);
     };
 
-    const renderAll = (img: HTMLImageElement) => {
+    const drawSignature = (signImg: HTMLImageElement) => {
+      if (cancelled) return;
+      const targetWidth = CERTIFICATE_CONFIG.signature.width;
+      const naturalW = signImg.naturalWidth || 2000;
+      const naturalH = signImg.naturalHeight || 800;
+      const targetHeight = (targetWidth / naturalW) * naturalH;
+      const signX = CERTIFICATE_CONFIG.signature.x - targetWidth / 2;
+      const signY = CERTIFICATE_CONFIG.signature.y - targetHeight + 6;
+      context.drawImage(signImg, signX, signY, targetWidth, targetHeight);
+    };
+
+    const renderAll = (templateImg: HTMLImageElement, signImg?: HTMLImageElement) => {
       if (cancelled) return;
       context.clearRect(0, 0, CERTIFICATE_CONFIG.width, CERTIFICATE_CONFIG.height);
-      context.drawImage(img, 0, 0, CERTIFICATE_CONFIG.width, CERTIFICATE_CONFIG.height);
+      context.drawImage(templateImg, 0, 0, CERTIFICATE_CONFIG.width, CERTIFICATE_CONFIG.height);
       drawParticipantName();
       drawCertificateDate();
       drawInitiativeName();
+      if (signImg) {
+        drawSignature(signImg);
+      }
     };
 
     if (CERTIFICATE_CONFIG.templateImage) {
-      if (cachedTemplateImage && cachedTemplateImage.complete && cachedTemplateImage.naturalWidth > 0) {
-        renderAll(cachedTemplateImage);
-      } else {
-        loadTemplateImage(CERTIFICATE_CONFIG.templateImage)
-          .then((img) => {
-            if (!cancelled) renderAll(img);
-          })
-          .catch(() => {
-            if (!cancelled) {
-              drawFallbackCertificate(context, name, CERTIFICATE_CONFIG.width, CERTIFICATE_CONFIG.height, dateStr, initiativeStr);
-            }
-          });
-      }
+      Promise.all([
+        cachedTemplateImage && cachedTemplateImage.complete && cachedTemplateImage.naturalWidth > 0
+          ? Promise.resolve(cachedTemplateImage)
+          : loadTemplateImage(CERTIFICATE_CONFIG.templateImage),
+        loadSignatureImage(signerKey).catch(() => null),
+      ])
+        .then(([tmplImg, signImg]) => {
+          if (!cancelled) {
+            renderAll(tmplImg, signImg || undefined);
+          }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            drawFallbackCertificate(context, name, CERTIFICATE_CONFIG.width, CERTIFICATE_CONFIG.height, dateStr, initiativeStr);
+          }
+        });
 
       return () => {
         cancelled = true;
@@ -257,13 +313,14 @@ function useCertificateRenderer(
     return () => {
       cancelled = true;
     };
-  }, [canvasRef, name, dateStr, initiativeStr]);
+  }, [canvasRef, name, dateStr, initiativeStr, signerKey]);
 }
 
 function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [attendee, setAttendee] = useState<AttendeeRecord | null>(() => getCurrentAttendee());
   const [existingClaim, setExistingClaim] = useState<ClaimedCertificate | null>(null);
+  const [adminSignerKey, setAdminSignerKey] = useState<SignerKey>('madhan');
 
   const [name, setName] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -281,7 +338,7 @@ function App() {
         setStatusMessage('Admin Mode (Unlimited): You can generate and download multiple certificates.');
         return;
       }
-      const claim = getAttendeeClaim(attendee.email);
+      const claim = getAttendeeClaim(attendee.email, attendee.event);
       if (claim) {
         setExistingClaim(claim);
         setName(claim.participantName);
@@ -299,11 +356,19 @@ function App() {
     }
   }, [attendee]);
 
+  const defaultSignerKey: SignerKey = attendee?.signerKey || 'madhan';
+  const activeSignerKey: SignerKey = attendee?.isUnlimited
+    ? adminSignerKey
+    : ((existingClaim?.signerKey as SignerKey) || defaultSignerKey);
+  const activeSigner = SIGNER_DETAILS[activeSignerKey] || SIGNER_DETAILS.madhan;
+
   const activeName = (!attendee?.isUnlimited && existingClaim) ? existingClaim.participantName : name;
-  const activeDate = STATIC_CERTIFICATE_DATE;
+  const activeDate = (!attendee?.isUnlimited && existingClaim)
+    ? (existingClaim.issueDate || attendee?.certificateDate || STATIC_CERTIFICATE_DATE)
+    : (attendee?.certificateDate || STATIC_CERTIFICATE_DATE);
   const activeInitiative = STATIC_INITIATIVE_NAME;
 
-  useCertificateRenderer(canvasRef, activeName, activeDate, activeInitiative);
+  useCertificateRenderer(canvasRef, activeName, activeDate, activeInitiative, activeSignerKey);
 
   const handleLoginSuccess = (user: AttendeeRecord) => {
     setAttendee(user);
@@ -323,7 +388,7 @@ function App() {
     if (!attendee) return;
 
     // Check limit enforcement (bypassed for unlimited accounts)
-    if (!attendee.isUnlimited && (hasAttendeeReachedLimit(attendee.email) || existingClaim)) {
+    if (!attendee.isUnlimited && (hasAttendeeReachedLimit(attendee.email, attendee.isUnlimited, attendee.event) || existingClaim)) {
       setLimitReachedError(true);
       setStatusMessage('You have reached your limit. Each login can generate only one certificate.');
       return;
@@ -341,7 +406,7 @@ function App() {
     window.setTimeout(() => {
       const canvas = canvasRef.current;
       const dataUrl = canvas ? canvas.toDataURL('image/png') : '';
-      const issueDate = STATIC_CERTIFICATE_DATE;
+      const issueDate = attendee.certificateDate || STATIC_CERTIFICATE_DATE;
       const initiativeName = STATIC_INITIATIVE_NAME;
 
       const result = recordAttendeeCertificate(
@@ -351,7 +416,9 @@ function App() {
         issueDate,
         dataUrl,
         attendee.isUnlimited,
-        initiativeName
+        initiativeName,
+        attendee.event,
+        activeSignerKey
       );
 
       setIsGenerating(false);
@@ -583,8 +650,26 @@ function App() {
 
                 <div className="date-badge" data-testid="badge-certificate-date">
                   <Calendar size={15} className="date-badge-icon" />
-                  <span>Date: <strong>{STATIC_CERTIFICATE_DATE}</strong> • Initiative: <strong>{STATIC_INITIATIVE_NAME}</strong></span>
+                  <span>Date: <strong>{activeDate}</strong> • Initiative: <strong>{STATIC_INITIATIVE_NAME}</strong> • Signer: <strong>{activeSigner.name}</strong></span>
                 </div>
+
+                {attendee.isUnlimited && (
+                  <div className="mt-3 p-2.5 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between gap-3 text-xs" data-testid="admin-signature-selector">
+                    <span className="font-semibold text-blue-900">
+                      ✍️ Signature Preview:
+                    </span>
+                    <select
+                      value={adminSignerKey}
+                      onChange={(e) => setAdminSignerKey(e.target.value as SignerKey)}
+                      className="bg-white border border-blue-300 rounded px-2.5 py-1 text-xs font-semibold text-blue-950 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                    >
+                      <option value="madhan">Group 1: Madhan Kumar T</option>
+                      <option value="prakash">Group 2: L. Prakash</option>
+                      <option value="deepa">Group 3: Deepa T</option>
+                      <option value="kishor">Group 4: R. Kishor Kumar</option>
+                    </select>
+                  </div>
+                )}
               </form>
             </div>
 

@@ -9,6 +9,7 @@ export interface ClaimedCertificate {
   participantName: string;
   issueDate: string;
   initiativeName?: string;
+  signerKey?: string;
   certificateDataUrl: string;
   generatedAt: string;
 }
@@ -72,25 +73,36 @@ export function logoutAttendee(): void {
   }
 }
 
+function getClaimKey(email: string, event?: string): string {
+  const cleanEmail = normalizeEmail(email);
+  return event ? `${event}_${cleanEmail}` : cleanEmail;
+}
+
 /**
  * Checks if the attendee has already generated a certificate
  */
-export function hasAttendeeReachedLimit(email: string, isUnlimited?: boolean): boolean {
+export function hasAttendeeReachedLimit(email: string, isUnlimited?: boolean, event?: string): boolean {
   if (isUnlimited) {
     return false;
   }
   const cleanEmail = normalizeEmail(email);
   const claims = getAllClaimedCertificates();
-  return Boolean(claims[cleanEmail]);
+  if (event === 'event-02') {
+    return Boolean(claims[getClaimKey(email, event)]);
+  }
+  return Boolean(claims[getClaimKey(email, event)] || claims[cleanEmail]);
 }
 
 /**
  * Retrieves the attendee's previously claimed certificate
  */
-export function getAttendeeClaim(email: string): ClaimedCertificate | null {
+export function getAttendeeClaim(email: string, event?: string): ClaimedCertificate | null {
   const cleanEmail = normalizeEmail(email);
   const claims = getAllClaimedCertificates();
-  return claims[cleanEmail] || null;
+  if (event === 'event-02') {
+    return claims[getClaimKey(email, event)] || null;
+  }
+  return claims[getClaimKey(email, event)] || claims[cleanEmail] || null;
 }
 
 /**
@@ -103,16 +115,23 @@ export function recordAttendeeCertificate(
   issueDate: string,
   certificateDataUrl: string,
   isUnlimited?: boolean,
-  initiativeName?: string
+  initiativeName?: string,
+  event?: string,
+  signerKey?: string
 ): { success: boolean; claim?: ClaimedCertificate; error?: string } {
   const cleanEmail = normalizeEmail(email);
   const claims = getAllClaimedCertificates();
+  const claimKey = getClaimKey(email, event);
+
+  const alreadyClaimed = event === 'event-02'
+    ? Boolean(claims[claimKey])
+    : Boolean(claims[claimKey] || claims[cleanEmail]);
 
   // Strict check: if already generated and not an unlimited account, deny new generation
-  if (!isUnlimited && claims[cleanEmail]) {
+  if (!isUnlimited && alreadyClaimed) {
     return {
       success: false,
-      claim: claims[cleanEmail],
+      claim: claims[claimKey] || claims[cleanEmail],
       error: 'You have reached your limit. You can only generate one certificate per attendee login.',
     };
   }
@@ -123,11 +142,15 @@ export function recordAttendeeCertificate(
     participantName: participantName.trim(),
     issueDate,
     initiativeName: initiativeName || 'Orientation Program',
+    signerKey,
     certificateDataUrl,
     generatedAt: new Date().toISOString(),
   };
 
-  claims[cleanEmail] = newClaim;
+  claims[claimKey] = newClaim;
+  if (event !== 'event-02') {
+    claims[cleanEmail] = newClaim;
+  }
 
   try {
     localStorage.setItem(CLAIMS_STORAGE_KEY, JSON.stringify(claims));
